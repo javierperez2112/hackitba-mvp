@@ -1,35 +1,36 @@
-import customtkinter as ctk
-from tkinter import messagebox
+import tkinter as tk
+from tkinter import ttk, messagebox
 import model
-import backend
 
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("GEMI-n PSV Pro")
+        #self.graph = graph.Graph(self)
+        self.root.title("GEMI-n")
         self.root.geometry("800x500")
         self.stages = []
         self.titles = []
         root.bind('<Return>', self.update_titles)
 
-        self.frm_buttons = ctk.CTkFrame(root)
-        
-        self.btn_new = ctk.CTkButton(self.frm_buttons, text="Nueva etapa", command=self.new_stage)
-        self.btn_run = ctk.CTkButton(self.frm_buttons, text="Ejecutar modelo", command=self.run_model)
-        
-        self.btn_new.pack(side="left", padx=5, pady=5)
-        self.btn_run.pack(side="right", padx=5, pady=5)
+        self.frm_buttons = tk.Frame(borderwidth=5)
 
-        self.frm_stage = ctk.CTkFrame(root)
-        self.frm_buttons.pack(fill="x")
-        self.frm_stage.pack(fill="x")
+        self.btn_new = tk.Button(master=self.frm_buttons, text="Nueva etapa", command=self.new_stage)
+        self.btn_run = tk.Button(master=self.frm_buttons, text="Ejecutar modelo", command=self.run_model)
+
+        self.btn_new.pack(side=tk.LEFT)
+        self.btn_run.pack(side=tk.RIGHT)
+
+        self.frm_stage = tk.Frame()
+        self.frm_buttons.pack(fill=tk.X)
+        self.frm_stage.pack(fill=tk.X)
 
     def new_stage(self):
         new_stage = Stage(self.frm_stage, self, len(self.stages) + 1)
-        new_stage.frm.pack(fill="x", padx=5, pady=2)
+        new_stage.frm.pack(fill=tk.X, padx=5, pady=2)
         self.stages.append(new_stage)
 
     def remove_stage(self, stage):
+        """ Elimina una etapa de la lista """
         if stage in self.stages:
             self.stages.remove(stage)
 
@@ -38,17 +39,18 @@ class App:
         try:
             for stage in self.stages:
                 title = stage.title
-                if title == "" or title in self.titles:
+                if title == "" or self.titles.__contains__(title):
                     raise ValueError("Títulos no válidos")
                 self.titles.append(title)
         except ValueError as e:
             messagebox.showerror("Error: ", str(e))
 
+    
     def update(self, event):
         for stage in self.stages:
             try:
                 title = stage.title
-                if title == "" or title in self.titles:
+                if title == "" or self.titles.__contains__(title):
                     raise ValueError("Títulos no válidos")
                 stage.update()
                 if not stage.edited:
@@ -56,18 +58,18 @@ class App:
             except ValueError as e:
                 messagebox.showerror("Error: ", str(e))
                 break
-
+    
     def run_model(self):
         self.update(0)
-        data = backend.Data()
-        for stage in self.stages:
-            data.add_stage(stage)
+        print("Run model")
+        return
 
+                
 
 class Stage:
     def __init__(self, root, app, ord):
         self.app = app
-        self.title = f"Stage {ord}"
+        self.title = "Stage " + str(ord)
         self.energy = 100
         self.edited = False
 
@@ -76,38 +78,46 @@ class Stage:
         self.co2_inf = 0
         self.inv_sup = 0
         self.inv_inf = 0
+        self.co2_rel = 0
         self.inv = 0
 
-        self.frm = ctk.CTkFrame(root)
-        self.lbl_stage = ctk.CTkLabel(self.frm, text="Etapa:")
-        self.ent_stage = ctk.CTkEntry(self.frm)
+        self.frm = tk.Frame(master=root, borderwidth=5, background="light gray")
+        self.lbl_stage = tk.Label(master=self.frm, text="Etapa: ", bg="light gray")
+        self.ent_stage = tk.Entry(master=self.frm)
         self.ent_stage.insert(0, self.title)
 
-        self.lbl_energy = ctk.CTkLabel(self.frm, text="Energía:")
+        self.lbl_energy = tk.Label(master=self.frm, text="Energía: ", bg="light gray")
         energy_types = [
             "kWh (Electricidad)", "L (Gasolina)", "L (Diesel)", "L (Bunker)",
             "L (Queroseno)", "L (LPG)", "L (Gasolina de aviacion)", "L (Jet Fuel)"
         ]
-        self.cbb_type = ctk.CTkComboBox(self.frm, values=energy_types)
+        self.cbb_type = ttk.Combobox(values=energy_types, master=self.frm, state="readonly")
         self.cbb_type.set(energy_types[0])
-        self.ent_energy = ctk.CTkEntry(self.frm)
-        self.ent_energy.insert(0, str(self.energy))
+        self.ent_energy = tk.Entry(master=self.frm)
+        self.ent_energy.insert(0,str(self.energy))
 
-        self.btn_edit = ctk.CTkButton(self.frm, text="Editar", command=self.open_edit_dialog)
-        self.btn_del = ctk.CTkButton(self.frm, text="Eliminar", command=self.destroy)
+        # Botones
+        self.btn_edit = tk.Button(master=self.frm, text="Editar", command=self.open_edit_dialog)
+        self.btn_del = tk.Button(master=self.frm, text="Eliminar", command=self.destroy)
 
-        self.lbl_stage.pack(side="left", padx=5, pady=5)
-        self.ent_stage.pack(side="left", padx=5, pady=5)
-        self.lbl_energy.pack(side="left", padx=5, pady=5)
-        self.ent_energy.pack(side="left", padx=5, pady=5)
-        self.cbb_type.pack(side="left", padx=5, pady=5)
-        self.btn_edit.pack(side="left", padx=5, pady=5)
-        self.btn_del.pack(side="right", padx=5, pady=5)
-
+        # Distribución en la interfaz
+        self.lbl_stage.pack(side=tk.LEFT, padx=5, pady=5)
+        self.ent_stage.pack(side=tk.LEFT, padx=5, pady=5)
+        self.lbl_energy.pack(side=tk.LEFT, padx=5, pady=5)
+        self.ent_energy.pack(side=tk.LEFT, padx=5, pady=5)
+        self.cbb_type.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_edit.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_del.pack(side=tk.RIGHT, padx=5, pady=5)
+    
     def set_edited(self, val):
         self.edited = val
+    
+    def title(self):
+        self.title = self.ent_stage.get()
+        return self.title
 
     def open_edit_dialog(self):
+        """Abre la ventana de edición para modificar los parámetros de la etapa"""
         EditDialog(self)
 
     def update(self):
@@ -116,39 +126,37 @@ class Stage:
             raise ValueError("Nombre de etapa vacío")
         self.energy = float(self.ent_energy.get())
         if self.energy <= 0:
-            raise ValueError(f"Energía inválida en etapa {self.title}")
+            raise ValueError("Energía inválida en etapa " + self.title)
 
     def destroy(self):
+        """ Elimina la etapa de la interfaz y de la lista """
         self.frm.destroy()
         self.app.remove_stage(self)
-
 
 class EditDialog:
     def __init__(self, stage):
         self.stage = stage
-        self.window = ctk.CTkToplevel()
+        self.window = tk.Toplevel()
         self.window.title("Editar Etapa")
-        self.window.attributes("-topmost", True)
-        self.window.geometry("400x250")
+        self.window.geometry("300x300")
         
         # Labels y entradas para cada parámetro
         fields = [
-            ("Límite CO2 Superior", "co2_sup","ton"), ("Límite CO2 Inferior", "co2_inf","ton"),
-            ("Límite Inversión Superior", "inv_sup","USD"), ("Límite Inversión Inferior", "inv_inf","USD"), 
-            ("Inversión", "inv", "USD")
+            ("Límite CO2 Superior", "co2_sup"), ("Límite CO2 Inferior", "co2_inf"),
+            ("Límite Inversión Superior", "inv_sup"), ("Límite Inversión Inferior", "inv_inf"),
+            ("Peso Relativo CO2 (0-1)", "co2_rel"), ("Inversión (USD)", "inv")
         ]
         
         self.entries = {}
-        for i, (label, var_name, unit) in enumerate(fields):
-            ctk.CTkLabel(self.window, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="w")
-            entry = ctk.CTkEntry(self.window)
+        for i, (label, var_name) in enumerate(fields):
+            tk.Label(self.window, text=label).grid(row=i, column=0, padx=10, pady=5, sticky="w")
+            entry = tk.Entry(self.window)
             entry.grid(row=i, column=1, padx=10, pady=5)
-            ctk.CTkLabel(self.window, text=unit).grid(row=i, column=2,padx=10, pady=5, sticky="e")
             entry.insert(0, str(getattr(stage, var_name)))  # Cargar valor actual
             self.entries[var_name] = entry
         
         # Botón Guardar
-        self.btn_save = ctk.CTkButton(self.window, text="Guardar", command=self.save)
+        self.btn_save = tk.Button(self.window, text="Guardar", command=self.save)
         self.btn_save.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def save(self):
@@ -158,6 +166,7 @@ class EditDialog:
             co2_inf = float(self.entries["co2_inf"].get())
             inv_sup = float(self.entries["inv_sup"].get())
             inv_inf = float(self.entries["inv_inf"].get())
+            co2_rel = float(self.entries["co2_rel"].get())
             inv = float(self.entries["inv"].get())
 
             # Validación de rangos
@@ -165,7 +174,9 @@ class EditDialog:
                 raise ValueError("El límite inferior de CO2 debe ser menor que el superior.")
             if inv_inf >= inv_sup:
                 raise ValueError("El límite inferior de inversión debe ser menor que el superior.")
-            for val in [co2_sup,co2_inf,inv_sup,inv_inf,inv]:
+            if not (0 <= co2_rel <= 1):
+                raise ValueError("El peso relativo de CO2 debe estar entre 0 y 1.")
+            for val in [co2_sup,co2_inf,inv_sup,inv_inf,co2_rel,inv]:
                 if val <= 0:
                     raise ValueError("Todos los valores deben ser positivos.")
 
@@ -174,6 +185,7 @@ class EditDialog:
             self.stage.co2_inf = co2_inf
             self.stage.inv_sup = inv_sup
             self.stage.inv_inf = inv_inf
+            self.stage.co2_rel = co2_rel
             self.stage.inv = inv
 
             self.window.destroy()
@@ -183,10 +195,7 @@ class EditDialog:
             messagebox.showerror("Error de entrada", str(e))
             self.stage.set_edited(False)
 
-
 if __name__ == "__main__":
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("green")
-    window = ctk.CTk()
+    window = tk.Tk()
     app = App(window)
     window.mainloop()
