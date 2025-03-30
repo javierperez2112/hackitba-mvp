@@ -1,12 +1,14 @@
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, ttk, filedialog
+from tkinter.ttk import Treeview
+import pandas as pd
 import model
 import backend
 
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("GEMI-n PSV Pro")
+        self.root.title("Camaleon PSV Pro")
         self.root.geometry("800x500")
         self.stages = []
         self.titles = []
@@ -15,9 +17,11 @@ class App:
         self.frm_buttons = ctk.CTkFrame(root)
         
         self.btn_new = ctk.CTkButton(self.frm_buttons, text="Nueva etapa", command=self.new_stage)
+        self.lbl_inst = ctk.CTkLabel(self.frm_buttons, text="Camaleon PSV - inserte etapas del proceso")
         self.btn_run = ctk.CTkButton(self.frm_buttons, text="Ejecutar modelo", command=self.run_model)
         
         self.btn_new.pack(side="left", padx=5, pady=5)
+        self.lbl_inst.pack(padx=5, pady=5, side="left")
         self.btn_run.pack(side="right", padx=5, pady=5)
 
         self.frm_stage = ctk.CTkFrame(root)
@@ -46,22 +50,29 @@ class App:
 
     def update(self, event):
         for stage in self.stages:
-            try:
-                title = stage.title
-                if title == "" or title in self.titles:
-                    raise ValueError("Títulos no válidos")
-                stage.update()
-                if not stage.edited:
-                    raise ValueError("Faltan etapas por rellenar")
-            except ValueError as e:
-                messagebox.showerror("Error: ", str(e))
-                break
+            title = stage.title
+            if title == "" or title in self.titles:
+                raise ValueError("Títulos no válidos")
+            stage.update()
+            if not stage.edited:
+                raise ValueError("Faltan etapas por rellenar")
 
     def run_model(self):
-        self.update(0)
+        try:
+            self.update(0)
+        except ValueError as e:
+            messagebox.showerror("Error: ", str(e))
+            return
+        
         data = backend.Data()
         for stage in self.stages:
             data.add_stage(stage)
+        
+        individual, total = data.apply_model()
+        
+        # Ocultar ventana principal y mostrar resultados
+        self.root.withdraw()
+        ResultsWindow(individual, total, self.root)
 
 
 class Stage:
@@ -183,10 +194,111 @@ class EditDialog:
             messagebox.showerror("Error de entrada", str(e))
             self.stage.set_edited(False)
 
+class ResultsWindow(ctk.CTkToplevel):
+    def __init__(self, individual, total_emissions, master=None):
+        super().__init__(master)
+        self.title("Resultados de Emisiones")
+        self.geometry("800x600")
+        
+        # Almacenar datos
+        self.individual = individual
+        self.total = total_emissions
+        
+        # Configurar interfaz
+        self.create_widgets()
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def create_widgets(self):
+        # Frame principal
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Tabla de emisiones
+        tree_frame = ctk.CTkFrame(main_frame)
+        tree_frame.pack(fill="both", expand=True, pady=5)
+        
+        # Configurar Treeview
+        self.tree = ttk.Treeview(
+            tree_frame,
+            columns=("Etapa", "Emisiones", "Carbon Investment"),
+            show="headings",
+            selectmode="browse"
+        )
+        
+        # Configurar columnas
+        self.tree.heading("Etapa", text="Etapa")
+        self.tree.heading("Emisiones", text="Emisiones (kg CO₂)")
+        self.tree.heading("Carbon Investment", text="Carbon Investment")
+        self.tree.column("Etapa", width=300, anchor="w")
+        self.tree.column("Emisiones", width=150, anchor="center")
+        self.tree.column("Carbon Investment", width=150, anchor="e")
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Layout
+        scrollbar.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True)
+        
+        # Insertar datos
+        for stage, emissions, metric in self.individual:
+            self.tree.insert("", "end", values=(stage, f"{emissions:.2f}", f"{metric:.2f}"))
+        
+        # Panel inferior
+        bottom_frame = ctk.CTkFrame(main_frame)
+        bottom_frame.pack(fill="x", pady=10)
+        
+        # Total
+        ctk.CTkLabel(bottom_frame, text="Total de Emisiones:").pack(side="left", padx=10)
+        ctk.CTkLabel(bottom_frame, text=f"{self.total:.2f} kg CO₂").pack(side="left")
+        
+        # Botones
+        btn_frame = ctk.CTkFrame(bottom_frame)
+        btn_frame.pack(side="right", padx=10)
+        
+        ctk.CTkButton(btn_frame, text="Guardar en Excel", command=self.save_to_excel).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Cerrar", command=self.on_close).pack(side="left", padx=5)
+
+    def save_to_excel(self):
+        try:
+            # Crear DataFrames
+            df_individual = pd.DataFrame(
+                [(stage, emissions) for stage, emissions in self.individual],
+                columns=["Etapa", "Emisiones (kg CO₂)"]
+            )
+            
+            df_total = pd.DataFrame({
+                "Total de Emisiones": [self.total]
+            })
+            
+            # Pedir ubicación para guardar
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Archivo Excel", "*.xlsx"), ("Todos los archivos", "*.*")]
+            )
+            
+            if not file_path:
+                return  # Usuario canceló
+            
+            # Guardar en Excel
+            with pd.ExcelWriter(file_path) as writer:
+                df_individual.to_excel(writer, sheet_name="Emisiones por Etapa", index=False)
+                df_total.to_excel(writer, sheet_name="Resumen Total", index=False)
+            
+            messagebox.showinfo("Éxito", "Datos exportados correctamente a:\n" + file_path)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar el archivo:\n{str(e)}")
+
+    def on_close(self):
+        self.master.destroy()  # Cerrar aplicación completamente
+        #self.destroy()
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("green")
     window = ctk.CTk()
+    window.iconbitmap("./icon.ico")
     app = App(window)
     window.mainloop()
